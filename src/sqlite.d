@@ -7,7 +7,7 @@ extern (C) immutable(char)* sqlite3_errstr(int); // missing from the std library
 
 static this()
 {
-	if (sqlite3_libversion_number() < 3006019) {
+	if (sqlite3_libversion_number() < 3006017) {
 		throw new SqliteException("sqlite 3.6.19 or newer is required");
 	}
 }
@@ -50,7 +50,7 @@ struct Database
 		int rc = sqlite3_open(toStringz(filename), &pDb);
 		if (rc != SQLITE_OK) {
 			close();
-			throw new SqliteException(ifromStringz(sqlite3_errstr(rc)));
+			//throw new SqliteException(ifromStringz(sqlite3_errstr(rc)));
 		}
 		sqlite3_extended_result_codes(pDb, 1); // always use extended result codes
 	}
@@ -99,7 +99,7 @@ struct Database
 	void close()
 	{
 		// https://www.sqlite.org/c3ref/close.html
-		sqlite3_close_v2(pDb);
+		sqlite3_close(pDb);
 		pDb = null;
 	}
 }

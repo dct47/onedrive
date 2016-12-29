@@ -17,6 +17,7 @@ int main(string[] args)
 	// enable verbose logging
 	bool verbose;
 
+	string uri="";
 	try {
 		auto opt = getopt(
 			args,
@@ -25,7 +26,8 @@ int main(string[] args)
 			"resync", "Forget the last saved state, perform a full sync.", &resync,
 			"logout", "Logout the current user.", &logout,
 			"confdir", "Set the directory to use to store the configuration files.", &configDirName,
-			"verbose|v", "Print more details, useful for debugging.", &log.verbose
+			"verbose|v", "Print more details, useful for debugging.", &log.verbose,
+			"uri|u", "set redirect_uri.",&uri
 		);
 		if (opt.helpWanted) {
 			defaultGetoptPrinter(
@@ -43,6 +45,13 @@ int main(string[] args)
 
 	log.vlog("Loading config ...");
 	configDirName = expandTilde(configDirName);
+	string configFile1Path = "/etc/onedrive.conf";
+	string configFile2Path = "/usr/local/etc/onedrive.conf";
+	string configFile3Path = configDirName ~ "/config";
+	string refreshTokenFilePath = configDirName ~ "/refresh_token";
+	string statusTokenFilePath = configDirName ~ "/status_token";
+	string databaseFilePath = configDirName ~ "/items.db";
+
 	if (!exists(configDirName)) mkdir(configDirName);
 	auto cfg = new config.Config(configDirName);
 	cfg.init();
@@ -71,7 +80,7 @@ int main(string[] args)
 		return EXIT_FAILURE;
 	}
 	auto onedrive = new OneDriveApi(cfg);
-	if (!onedrive.init()) {
+	if (!onedrive.init(uri)) {
 		log.log("Could not initialize the OneDrive API");
 		// workaround for segfault in std.net.curl.Curl.shutdown() on exit
 		onedrive.http.shutdown();
@@ -163,7 +172,7 @@ void performSync(SyncEngine sync)
 			sync.scanForDifferences(".");
 			count = -1;
 		} catch (SyncException e) {
-			if (++count == 3) throw e;
+			if (++count == 150) throw e;
 			else log.log(e.msg);
 		}
 	} while (count != -1);

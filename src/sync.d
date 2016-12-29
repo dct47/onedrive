@@ -5,7 +5,7 @@ import config, itemdb, onedrive, upload, util;
 static import log;
 
 // threshold after which files will be uploaded using an upload session
-private long thresholdFileSize = 10 * 2^^20; // 10 MiB
+private long thresholdFileSize = 2 * 2^^20; // 10 Mib
 
 private bool isItemFolder(const ref JSONValue item)
 {

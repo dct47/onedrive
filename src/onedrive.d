@@ -5,9 +5,9 @@ import config;
 static import log;
 
 
-private immutable {
+private {
 	string authUrl = "https://login.live.com/oauth20_authorize.srf";
-	string redirectUrl = "https://login.live.com/oauth20_desktop.srf"; // "urn:ietf:wg:oauth:2.0:oob";
+	string redirectUrl = "";
 	string tokenUrl = "https://login.live.com/oauth20_token.srf";
 	string driveUrl = "https://api.onedrive.com/v1.0/drive";
 	string itemByIdUrl = "https://api.onedrive.com/v1.0/drive/items/";
@@ -37,7 +37,7 @@ class OneDriveException: Exception
 	{
 		this.httpStatusCode = httpStatusCode;
 		this.error = error;
-		string msg = format("HTTP request returned status code %d (%s)\n%s", httpStatusCode, reason, toJSON(error, true));
+		string msg = format("HTTP request returned status code %d (%s)\n", httpStatusCode, reason);
 		super(msg, file, line, next);
 	}
 }
@@ -45,7 +45,7 @@ class OneDriveException: Exception
 final class OneDriveApi
 {
 	private Config cfg;
-	private string clientId;
+	private string clientId, clientSecret;
 	private string refreshToken, accessToken;
 	private SysTime accessTokenExpiration;
 	/* private */ HTTP http;
@@ -54,36 +54,42 @@ final class OneDriveApi
 	{
 		this.cfg = cfg;
 		this.clientId = cfg.getValue("client_id");
+		this.clientSecret = cfg.getValue("client_secret");
+		redirectUrl = cfg.getValue("client_redirecturl");
 		http = HTTP();
 		//http.verbose = true;
 	}
 
-	bool init()
+	bool init(string uri)
 	{
 		try {
 			refreshToken = readText(cfg.refreshTokenFilePath);
 			getDefaultDrive();
 		} catch (FileException e) {
-			return authorize();
+			return authorize(uri);
 		} catch (OneDriveException e) {
 			if (e.httpStatusCode == 400 || e.httpStatusCode == 401) {
 				log.log("Refresh token invalid");
-				return authorize();
+				return authorize(uri);
 			}
 			throw e;
 		}
 		return true;
 	}
 
-	bool authorize()
+	bool authorize(string uri)
 	{
 		import std.stdio, std.regex;
-		char[] response;
 		string url = authUrl ~ "?client_id=" ~ clientId ~ "&scope=onedrive.readwrite%20offline_access&response_type=code&redirect_uri=" ~ redirectUrl;
 		log.log("Authorize this app visiting:\n");
-		write(url, "\n\n", "Enter the response uri: ");
-		readln(response);
+		log.log(url, "\n\n");
 		// match the authorization code
+		string response = uri;
+		if("" == response)
+		{
+			write("Enter the response uri: ");
+			response = stdin.readln();
+		}
 		auto c = matchFirst(response, r"(?:code=)(([\w\d]+-){4}[\w\d]+)");
 		if (c.empty) {
 			log.log("Invalid uri");
@@ -217,6 +223,7 @@ final class OneDriveApi
 	{
 		const(char)[] postData =
 			"client_id=" ~ clientId ~
+			"&client_secret=" ~ clientSecret ~
 			"&redirect_uri=" ~ redirectUrl ~
 			"&code=" ~ authCode ~
 			"&grant_type=authorization_code";
@@ -227,6 +234,7 @@ final class OneDriveApi
 	{
 		string postData =
 			"client_id=" ~ clientId ~
+			"&client_secret=" ~ clientSecret ~
 			"&redirect_uri=" ~ redirectUrl ~
 			"&refresh_token=" ~ refreshToken ~
 			"&grant_type=refresh_token";
@@ -235,6 +243,7 @@ final class OneDriveApi
 
 	private void acquireToken(const(char)[] postData)
 	{
+		log.log(postData);
 		JSONValue response = post(tokenUrl, postData);
 		accessToken = "bearer " ~ response["access_token"].str();
 		refreshToken = response["refresh_token"].str();
